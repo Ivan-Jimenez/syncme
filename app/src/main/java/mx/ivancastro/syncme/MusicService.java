@@ -12,7 +12,7 @@ public class MusicService  extends Service implements MediaPlayer.OnErrorListene
     private final IBinder mBinder = new ServiceBinder();
     MediaPlayer mPlayer;
     private int length = 0;
-    private int seekFordwardTime = 60000;
+    private int seekFordwardTime = 10000;
 
     public MusicService () {}
 
@@ -108,5 +108,17 @@ public class MusicService  extends Service implements MediaPlayer.OnErrorListene
             }
         }
         return false;
+    }
+
+    public boolean isPlaying () {
+        return mPlayer.isPlaying();
+    }
+
+    public int getSongCurentPosition () {
+        return mPlayer.getCurrentPosition();
+    }
+
+    public int getSongDuration () {
+        return mPlayer.getDuration();
     }
 }
