@@ -1,28 +1,47 @@
 package mx.ivancastro.syncme;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Environment;
 import android.os.IBinder;
+import android.provider.MediaStore;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
     private boolean mIsBound = false;
     private MusicService mServ;
 
     private ProgressBar progressBar;
+    private TextView songName;
 
     Intent music;
     Thread progressThread;
+
+    ArrayList<String> arrayTest;
+    private static final int MY_PERMISSION_REQUEST = 1;
 
     private ServiceConnection Scon = new ServiceConnection() {
         @Override
@@ -58,6 +77,40 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        arrayTest = new ArrayList<>();
+
+        // Check permissions
+        if (ContextCompat.checkSelfPermission(MainActivity.this,
+                Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[] {Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION_REQUEST);
+            } else {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[] {Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION_REQUEST);
+            }
+        } else {
+            getSongs();
+        }
+
+
+        songName = findViewById(R.id.txtSongName);
+
+        //getSongs();
+
+        // Create playlist
+        ArrayList<HashMap<String, String>> songList = getPlayList(Environment.getExternalStorageDirectory().getAbsolutePath());
+        if (songList != null) {
+            for (int i = 0; i < songList.size(); i++) {
+                String fileName = songList.get(i).get("file_name");
+                String filePath = songList.get(i).get("file_path");
+                Log.e("file details ", " name: " + fileName + " path: " + filePath);
+            }
+            Toast.makeText(this, songList.get(0).get("file_name"), Toast.LENGTH_LONG).show();
+            songName.setText(arrayTest.get(5));
+        }
 
         // Bind the service
         doBindService();
@@ -165,5 +218,73 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
         );
+    }
+
+    /**
+     * Function to read all mp3 files from sdcard
+     * and store the details in ArrayList
+     * */
+    ArrayList<HashMap<String,String>> getPlayList(String rootPath) {
+        ArrayList<HashMap<String,String>> fileList = new ArrayList<>();
+
+
+        try {
+            File rootFolder = new File(rootPath);
+            File[] files = rootFolder.listFiles(); //here you will get NPE if directory doesn't contains  any file,handle it like this.
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    if (getPlayList(file.getAbsolutePath()) != null) {
+                        fileList.addAll(getPlayList(file.getAbsolutePath()));
+                    } else {
+                        break;
+                    }
+                } else if (file.getName().endsWith(".mp3")) {
+                    HashMap<String, String> song = new HashMap<>();
+                    song.put("file_path", file.getAbsolutePath());
+                    song.put("file_name", file.getName());
+                    fileList.add(song);
+                }
+            }
+            return fileList;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void getSongs () {
+        ContentResolver contentResolver = getContentResolver();
+        Uri songUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+        Cursor songCursor = contentResolver.query(songUri, null, null, null, null);
+
+        if (songCursor != null && songCursor.moveToFirst()) {
+            int songTitle = songCursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
+            int songArtist = songCursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
+
+            do {
+                String currentTitle = songCursor.getString(songTitle);
+                String currentArtist = songCursor.getString(songArtist);
+                arrayTest.add(currentTitle.concat(" ").concat(currentArtist));
+            } while (songCursor.moveToNext());
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult (int requestCode, String[] permissions, int[] grantResults) {
+        switch (requestCode) {
+            case MY_PERMISSION_REQUEST: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    if (ContextCompat.checkSelfPermission(MainActivity.this,
+                            Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                        Toast.makeText(MainActivity.this, "Persmiso", Toast.LENGTH_LONG).show();
+                        // Do stuff
+                        getSongs();
+                    }
+                } else {
+                    // Permission no granted
+                    finish();
+                }
+                return;
+            }
+        }
     }
 }
